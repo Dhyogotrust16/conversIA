@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuthTokenKind {
+  BEARER
+  PLUGIN
+}
+
+enum NotificationViewer {
+  NOTIFY
+  MODAL
+  INBOX
+  EXTERNAL_PAGE
+}
+
+enum AudienceTier {
+  ALL
+  FREE
+  PREMIUM
+}
+
+model WhiteLabel {
+  id               String            @id @default(cuid())
+  chromeStoreId    String            @unique
+  nameId           String
+  firstName        String
+  displayName      String
+  language         String            @default("pt")
+  description      String?
+  cryptKey         String
+  appBaseUrl       String?
+  meetConfig       Json?
+  users            User[]
+  urlEntries       UrlEntry[]
+  webhookEntries   WebhookEntry[]
+  notifications    Notification[]
+  migrationSetting MigrationSetting?
+  installEvents    InstallEvent[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model User {
+  id                   String      @id @default(cuid())
+  whiteLabelId         String
+  whiteLabel           WhiteLabel  @relation(fields: [whiteLabelId], references: [id], onDelete: Cascade)
+  email                String
+  name                 String
+  passwordHash         String
+  userStatus           String      @default("active")
+  premiumReleaseAt     DateTime?
+  whatsappRegistration String?
+  whatsappPlugin       String?
+  path                 String?
+  affiliateCode        String?
+  campaignId           String?
+  authGoogle           Json?
+  cookies              Json?
+  authTokens           AuthToken[]
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  @@unique([whiteLabelId, email])
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      AuthTokenKind
+  token     String        @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, kind])
+}
+
+model UrlEntry {
+  id           String     @id @default(cuid())
+  whiteLabelId String
+  whiteLabel   WhiteLabel @relation(fields: [whiteLabelId], references: [id], onDelete: Cascade)
+  section      String
+  entryId      String
+  link         String
+  active       Boolean    @default(false)
+  redirect     Boolean    @default(false)
+  msg          String?
+  btnName      String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([whiteLabelId, section, entryId])
+}
+
+model WebhookEntry {
+  id           String     @id @default(cuid())
+  whiteLabelId String
+  whiteLabel   WhiteLabel @relation(fields: [whiteLabelId], references: [id], onDelete: Cascade)
+  webhookId    String
+  link         String
+  active       Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([whiteLabelId, webhookId])
+}
+
+model MigrationSetting {
+  id           String     @id @default(cuid())
+  whiteLabelId String     @unique
+  whiteLabel   WhiteLabel @relation(fields: [whiteLabelId], references: [id], onDelete: Cascade)
+  active       Boolean    @default(false)
+  blockDate    DateTime?
+  linkTutorial String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Notification {
+  id           String             @id @default(cuid())
+  whiteLabelId String
+  whiteLabel   WhiteLabel         @relation(fields: [whiteLabelId], references: [id], onDelete: Cascade)
+  audience     AudienceTier       @default(ALL)
+  viewer       NotificationViewer @default(INBOX)
+  title        String
+  statement    String
+  link         String?
+  btnName      String?
+  active       Boolean            @default(true)
+  openOnUpdate Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model InstallEvent {
+  id           String     @id @default(cuid())
+  whiteLabelId String
+  whiteLabel   WhiteLabel @relation(fields: [whiteLabelId], references: [id], onDelete: Cascade)
+  eventType    String
+  userAgent    String?
+  origin       String?
+  createdAt    DateTime   @default(now())
+}
