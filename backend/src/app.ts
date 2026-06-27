@@ -1428,5 +1428,43 @@ export async function buildApp({ env, prisma }: AppOptions) {
     await runtime.close();
   });
 
+  // Rota de seed protegida por secret — só para primeiro setup
+  app.post("/api/setup/seed", async (request, reply) => {
+    const { secret } = request.body as { secret?: string };
+    if (!secret || secret !== env.EXTENSION_CRIPT_KEY) {
+      reply.code(401);
+      return { success: false, message: "Unauthorized" };
+    }
+    try {
+      const { hashPassword } = await import("./lib/auth.js");
+      const { NotificationViewer, AudienceTier } = await import("@prisma/client");
+      const chromeStoreId = env.EXTENSION_CHROME_STORE_ID;
+      const whiteLabel = await prisma.whiteLabel.upsert({
+        where: { chromeStoreId },
+        update: { nameId: "waspeed", firstName: "WaSpeed", displayName: "WaSpeed: Superpoderes para o seu WhatsApp, CRM e muito mais.", language: "pt", description: "Backend próprio compatível com a estrutura da extensão.", cryptKey: env.EXTENSION_CRIPT_KEY, appBaseUrl: env.APP_BASE_URL },
+        create: { chromeStoreId, nameId: "waspeed", firstName: "WaSpeed", displayName: "WaSpeed: Superpoderes para o seu WhatsApp, CRM e muito mais.", language: "pt", description: "Backend próprio compatível com a estrutura da extensão.", cryptKey: env.EXTENSION_CRIPT_KEY, appBaseUrl: env.APP_BASE_URL }
+      });
+      await prisma.migrationSetting.upsert({
+        where: { whiteLabelId: whiteLabel.id },
+        update: { active: env.MIGRATION_ACTIVE, blockDate: env.MIGRATION_BLOCK_DATE ? new Date(env.MIGRATION_BLOCK_DATE) : null, linkTutorial: env.MIGRATION_TUTORIAL_URL },
+        create: { whiteLabelId: whiteLabel.id, active: env.MIGRATION_ACTIVE, blockDate: env.MIGRATION_BLOCK_DATE ? new Date(env.MIGRATION_BLOCK_DATE) : null, linkTutorial: env.MIGRATION_TUTORIAL_URL }
+      });
+      const passwordHash = await hashPassword(env.SEED_ADMIN_PASSWORD);
+      const admin = await prisma.user.upsert({
+        where: { whiteLabelId_email: { whiteLabelId: whiteLabel.id, email: env.SEED_ADMIN_EMAIL } },
+        update: { name: env.SEED_ADMIN_NAME, passwordHash, userStatus: env.SEED_ADMIN_STATUS, premiumReleaseAt: new Date(), path: `/${chromeStoreId}`, authGoogle: { email_auth: env.SEED_ADMIN_EMAIL }, cookies: {} },
+        create: { whiteLabelId: whiteLabel.id, email: env.SEED_ADMIN_EMAIL, name: env.SEED_ADMIN_NAME, passwordHash, userStatus: env.SEED_ADMIN_STATUS, premiumReleaseAt: new Date(), path: `/${chromeStoreId}`, authGoogle: { email_auth: env.SEED_ADMIN_EMAIL }, cookies: {} }
+      });
+      const existingNotif = await prisma.notification.findFirst({ where: { whiteLabelId: whiteLabel.id, title: "Backend próprio ativo" } });
+      if (!existingNotif) {
+        await prisma.notification.create({ data: { whiteLabelId: whiteLabel.id, audience: AudienceTier.ALL, viewer: NotificationViewer.INBOX, title: "Backend próprio ativo", statement: "O backend compatível já está pronto.", btnName: "Abrir documentação", link: `${env.APP_BASE_URL}/docs`, active: true, openOnUpdate: false } });
+      }
+      return { success: true, whiteLabel: whiteLabel.chromeStoreId, admin: admin.email };
+    } catch (err) {
+      reply.code(500);
+      return { success: false, message: String(err) };
+    }
+  });
+
   return app;
 }
