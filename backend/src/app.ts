@@ -1,4 +1,4 @@
-import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
+﻿import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import type { PrismaClient, WhiteLabel } from "@prisma/client";
@@ -36,7 +36,7 @@ import {
 import { listLocalAiAgents, setLocalAiAgentAction } from "./lib/local-ai-agents.js";
 import { buildLocalCrmModels } from "./lib/local-crm.js";
 import { createRuntimeBridge } from "./lib/socket-runtime.js";
-import { mergeDomSelector } from "./lib/dom-selector.js";
+import { mergeDomSelector, localDomSelectorBase } from "./lib/dom-selector.js";
 import { parseColumnsFromWorkbookBase64, rowsToWorkbookBase64, sheetsToWorkbookBase64 } from "./lib/xlsx.js";
 import type { Env } from "./config/env.js";
 
@@ -1022,6 +1022,20 @@ export async function buildApp({ env, prisma }: AppOptions) {
     };
   });
 
+  
+  // Endpoint requerido pela extensao: GET /config.json
+  // Retorna o domSelector com as URLs de update apontando para este backend
+  app.get("/config.json", async (_request, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    const baseUrl = env.APP_BASE_URL.replace(/\/$/, "");
+    return {
+      ...localDomSelectorBase,
+      remote_code: `${baseUrl}/`,
+      update_path: `${baseUrl}/api/urls/update`,
+      update_path_new: `${baseUrl}/api/services/update`,
+      update_path_active: "true",
+    };
+  });
   app.all("/api/services/update", async () => ({ success: true }));
   app.all("/api/urls/update", async () => ({ success: true }));
 
@@ -1468,3 +1482,5 @@ export async function buildApp({ env, prisma }: AppOptions) {
 
   return app;
 }
+
+
