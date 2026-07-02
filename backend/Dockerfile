@@ -1,4 +1,4 @@
-FROM node:22-alpine AS deps
+﻿FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -7,6 +7,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# cache-bust: 2026-07-02
 RUN npx prisma generate
 RUN npm run build
 
